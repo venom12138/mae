@@ -260,4 +260,4 @@ def save_checkpoint(state, checkpoint='checkpoint', filename='checkpoint.pth.tar
     torch.save(state, filepath)
 
 if __name__ == '__main__':
-    main(args)
+    main()
