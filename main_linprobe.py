@@ -239,21 +239,7 @@ def main():
         eval_metrics = evaluate(val_loader, model, exp, epoch)
         max_accuracy = max(max_accuracy, eval_metrics["top1"])
         print(f'Max accuracy: {max_accuracy:.2f}%')
-        exp.write(phase, train_metrics=train_metrics, eval_metrics=eval_metrics,epoch=epoch,lr=optimizer.param_groups[0]['lr'])
-        
-        if log_writer is not None:
-            log_writer.add_scalar('perf/test_acc1', test_stats['acc1'], epoch)
-            log_writer.add_scalar('perf/test_acc5', test_stats['acc5'], epoch)
-            log_writer.add_scalar('perf/test_loss', test_stats['loss'], epoch)
-
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                        **{f'test_{k}': v for k, v in test_stats.items()},
-                        'epoch': epoch,
-                        'n_parameters': n_parameters}
-
-    total_time = time.time() - start_time
-    total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('Training time {}'.format(total_time_str))
+        exp.write(args.phase, train_metrics=train_metrics, eval_metrics=eval_metrics,epoch=epoch,lr=optimizer.param_groups[0]['lr'])
 
 def save_checkpoint(state, checkpoint='checkpoint', filename='checkpoint.pth.tar'):
     filepath = os.path.join(checkpoint, filename)
