@@ -35,6 +35,7 @@ from util.crop import RandomResizedCrop
 from networks import models_vit
 
 from engine_finetune import train_one_epoch, evaluate
+from util.utils import ExpHandler
 from collections import OrderedDict
 
 def get_args_parser():
