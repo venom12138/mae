@@ -20,34 +20,29 @@ from timm.utils import accuracy
 
 import util.misc as misc
 import util.lr_sched as lr_sched
-
+from util.utils import AverageMeter
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
-                    mixup_fn: Optional[Mixup] = None, log_writer=None,
+                    epoch: int, loss_scaler, max_norm: float = 0,
+                    mixup_fn: Optional[Mixup] = None, exp=None,
                     args=None):
-    model.train(True)
-    metric_logger = misc.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    header = 'Epoch: [{}]'.format(epoch)
-    print_freq = 20
+    batch_time = AverageMeter()
+    losses = AverageMeter()
 
-    accum_iter = args.accum_iter
+    train_batches_num = len(data_loader)
+    model.train(True)
 
     optimizer.zero_grad()
+    end = time.time()
 
-    if log_writer is not None:
-        print('log_dir: {}'.format(log_writer.log_dir))
-
-    for data_iter_step, (samples, targets) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+    for data_iter_step, (samples, targets) in enumerate(data_loader):
 
         # we use a per iteration (instead of per epoch) lr scheduler
-        if data_iter_step % accum_iter == 0:
-            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
+        lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
-        samples = samples.to(device, non_blocking=True)
-        targets = targets.to(device, non_blocking=True)
+        samples = samples.cuda()
+        targets = targets.cuda()
 
         if mixup_fn is not None:
             samples, targets = mixup_fn(samples, targets)
@@ -62,41 +57,37 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
 
-        loss /= accum_iter
         loss_scaler(loss, optimizer, clip_grad=max_norm,
                     parameters=model.parameters(), create_graph=False,
-                    update_grad=(data_iter_step + 1) % accum_iter == 0)
-        if (data_iter_step + 1) % accum_iter == 0:
-            optimizer.zero_grad()
+                    update_grad=True)
+        
+        optimizer.zero_grad()
 
-        torch.cuda.synchronize()
+        batch_time.update(time.time() - end)
+        end = time.time()
 
-        metric_logger.update(loss=loss_value)
+        losses.update(loss_value, samples.size(0))
+        
         min_lr = 10.
         max_lr = 0.
         for group in optimizer.param_groups:
             min_lr = min(min_lr, group["lr"])
             max_lr = max(max_lr, group["lr"])
 
-        metric_logger.update(lr=max_lr)
+        if (i + 1) % 20 == 0:
+            string = ('Epoch: [{0}][{1}/{2}]\t'
+                      'Time {batch_time.value:.3f} ({batch_time.ave:.3f})\t'
+                      'Loss {loss.value:.4f} ({loss.ave:.4f})\t'.format(
+                epoch, data_iter_step + 1, train_batches_num, batch_time=batch_time,
+                loss=losses))
 
-        loss_value_reduce = misc.all_reduce_mean(loss_value)
-        if log_writer is not None and (data_iter_step + 1) % accum_iter == 0:
-            """ We use epoch_1000x as the x-axis in tensorboard.
-            This calibrates different curves when batch size changes.
-            """
-            epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
-            log_writer.add_scalar('loss', loss_value_reduce, epoch_1000x)
-            log_writer.add_scalar('lr', max_lr, epoch_1000x)
+            exp.log(string)
 
-    # gather the stats from all processes
-    metric_logger.synchronize_between_processes()
-    print("Averaged stats:", metric_logger)
-    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    return OrderedDict(loss=losses.ave)
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device):
+def evaluate(data_loader, model):
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = misc.MetricLogger(delimiter="  ")
@@ -108,8 +99,8 @@ def evaluate(data_loader, model, device):
     for batch in metric_logger.log_every(data_loader, 10, header):
         images = batch[0]
         target = batch[-1]
-        images = images.to(device, non_blocking=True)
-        target = target.to(device, non_blocking=True)
+        images = images.cuda()
+        target = target.cuda()
 
         # compute output
         with torch.cuda.amp.autocast():

@@ -232,7 +232,7 @@ class MaskedAutoencoderViT(nn.Module):
 # decoder_num_heads的decoder_depth numheads和embeddim保持不变，
 def mae_deit_tiny_patch4_dec512d(**kwargs):
     model = MaskedAutoencoderViT(
-        img_size=32, patch_size=4, embed_dim=192, depth=12, num_heads=3,
+        patch_size=4, embed_dim=192, depth=12, num_heads=3,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
@@ -267,6 +267,6 @@ mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 b
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
 
 if __name__=='__main__':
-    model = mae_deit_tiny_patch4_dec512d()
-    x = torch.rand(1,3,32,32)
+    model = mae_vit_base_patch16_dec512d8b()
+    x = torch.rand(1,3,224,224)
     model(x)
