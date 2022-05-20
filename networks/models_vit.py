@@ -54,8 +54,8 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
 def deit_tiny_patch4_32(pretrained=False, **kwargs):
     model = VisionTransformer(
-        patch_size=4, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4, qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+        img_size=32, patch_size=4, embed_dim=192, depth=12, num_heads=3, 
+        mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 def deit_tiny_patch16_224(pretrained=False, **kwargs):
