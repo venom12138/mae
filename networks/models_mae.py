@@ -155,31 +155,36 @@ class MaskedAutoencoderViT(nn.Module):
     def forward_encoder(self, x, mask_ratio):
         # embed patches
         x = self.patch_embed(x)
-        print(f'embed_size:{x.size()}')
+
+        # print(f'embed_size:{x.size()}')
         # add pos embed w/o cls token
         # 第一个留给cls_token
         x = x + self.pos_embed[:, 1:, :]
-        print(f'after pos_embed:{x.size()}')
+
+        # print(f'after pos_embed:{x.size()}')
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
-        print(f'after masking:{x.size()}')
+
+        # print(f'after masking:{x.size()}')
         # append cls token
         # cls_token 加上pos_embedding
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
         # expand 成[B,1,embeding_size]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
-        print(f'after cls_tokens:{x.size()}')
+
+        # print(f'after cls_tokens:{x.size()}')
         # apply Transformer blocks
         for blk in self.blocks:
             x = blk(x)
         x = self.norm(x)
-        print(f'after encoder:{x.size()}')
+
+        # print(f'after encoder:{x.size()}')
         return x, mask, ids_restore
 
     def forward_decoder(self, x, ids_restore):
         # embed tokens
-        print(f'decoder input size:{x.size()}')
+        # print(f'decoder input size:{x.size()}')
         x = self.decoder_embed(x)
         
         # append mask tokens to sequence
@@ -212,6 +217,8 @@ class MaskedAutoencoderViT(nn.Module):
         mask: [N, L], 0 is keep, 1 is remove, 
         """
         target = self.patchify(imgs)
+        # print(f'target:{target.size()}')
+        # print(f'pred:{pred.size()}')
         if self.norm_pix_loss:
             mean = target.mean(dim=-1, keepdim=True)
             var = target.var(dim=-1, keepdim=True)
@@ -221,6 +228,7 @@ class MaskedAutoencoderViT(nn.Module):
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+        # print(f'loss:{loss.size()}')
         return loss
 
     def forward(self, imgs, mask_ratio=0.75):

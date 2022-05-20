@@ -18,16 +18,15 @@ from pathlib import Path
 
 import torch
 import torch.backends.cudnn as cudnn
-from torch.utils.tensorboard import SummaryWriter
+
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
 import timm
 
-assert timm.__version__ == "0.3.2" # version check
+# assert timm.__version__ == "0.3.2" # version check
 from timm.models.layers import trunc_normal_
 
-import util.misc as misc
 from util.pos_embed import interpolate_pos_embed
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.lars import LARS
@@ -36,16 +35,18 @@ from util.crop import RandomResizedCrop
 import models_vit
 
 from engine_finetune import train_one_epoch, evaluate
-
+from collections import OrderedDict
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE linear probing for image classification', add_help=False)
     parser.add_argument('--batch_size', default=512, type=int,
                         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
     parser.add_argument('--epochs', default=90, type=int)
+    parser.add_argument('--accum_iter', default=1, type=int,
+                        help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
 
     # Model parameters
-    parser.add_argument('--model', default='vit_large_patch16', type=str, metavar='MODEL',
+    parser.add_argument('--model', default='deit_tiny_patch4_32', type=str, metavar='MODEL',
                         help='Name of model to train')
 
     # Optimizer parameters
@@ -69,6 +70,7 @@ def get_args_parser():
     parser.set_defaults(global_pool=False)
     parser.add_argument('--cls_token', action='store_false', dest='global_pool',
                         help='Use class token instead of global pool for classification')
+    # parser.set_defaults(cls_token=True)
 
     # Dataset parameters
     parser.add_argument('--data_path', default='../data', type=str,
@@ -84,6 +86,7 @@ def get_args_parser():
                         help='start epoch')
     parser.add_argument('--eval', action='store_true',
                         help='Perform evaluation only')
+    parser.add_argument('--phase', type=str, default=None, choices=['pretrain', 'linprobe', 'finetune'])
     parser.add_argument('--en_wandb', action='store_true')
     return parser.parse_args()
 
@@ -117,14 +120,14 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
                                 std=[x / 255.0 for x in [63.0, 62.1, 66.7]])])
-    kwargs = {'num_workers': 4, 'pin_memory': True}
+    kwargs = {'num_workers': 10, 'pin_memory': True}
     train_loader = torch.utils.data.DataLoader(
-        datasets.__dict__[args.dataset.upper()]('../data', train=True, download=True,
+        datasets.__dict__['cifar10'.upper()]('../data', train=True, download=True,
                                                 transform=transform_train),
         batch_size=args.batch_size, shuffle=True, drop_last=True, **kwargs)
 
     val_loader = torch.utils.data.DataLoader(
-        datasets.__dict__[args.dataset.upper()]('../data', train=False, download=True, transform=transform_test),
+        datasets.__dict__['cifar10'.upper()]('../data', train=False, download=True, transform=transform_test),
         batch_size=args.batch_size, shuffle=False, **kwargs)
 
     model = models_vit.__dict__[args.model](
@@ -170,19 +173,20 @@ def main():
     model.cuda()
 
     model_without_ddp = model
+    model = torch.nn.DataParallel(model)
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     print("Model = %s" % str(model_without_ddp))
     print('number of params (M): %.2f' % (n_parameters / 1.e6))
 
-    eff_batch_size = args.batch_size 
+    eff_batch_size = args.batch_size * args.accum_iter
     
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256
 
     print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
     print("actual lr: %.2e" % args.lr)
-
+    print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
     optimizer = LARS(model_without_ddp.head.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -209,7 +213,7 @@ def main():
             print("With optim & sched!")
 
     if args.eval:
-        test_stats = evaluate(val_loader, model, device)
+        test_stats = evaluate(val_loader, model, exp)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         exit(0)
 
@@ -219,20 +223,19 @@ def main():
     for epoch in range(args.start_epoch, args.epochs):
         train_metrics = train_one_epoch(
             model, criterion, data_loader_train,
-            optimizer, device, epoch, loss_scaler,
+            optimizer, epoch, loss_scaler,
             max_norm=None,
             exp=exp,
-            args=args
-        )
+            args=args)
         save_checkpoint({
                 'model': model_without_ddp.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'epoch': epoch,
                 'scaler': loss_scaler.state_dict(),
                 'args': args,
-            }, checkpoint=exp.save_dir, file_name=f'checkpoint.pth.tar')
+            }, checkpoint=exp.save_dir, filename=f'checkpoint.pth.tar')
 
-        eval_metrics = evaluate(val_loader, model, device)
+        eval_metrics = evaluate(val_loader, model, exp, epoch)
         max_accuracy = max(max_accuracy, eval_metrics["top1"])
         print(f'Max accuracy: {max_accuracy:.2f}%')
         exp.write(phase, train_metrics=train_metrics, eval_metrics=eval_metrics,epoch=epoch,lr=optimizer.param_groups[0]['lr'])

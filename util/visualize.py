@@ -22,6 +22,7 @@ import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
+from PIL import Image
 import timm
 import torch.nn.functional as F
 # assert timm.__version__ == "0.3.2"  # version check
@@ -37,11 +38,9 @@ from util.utils import ExpHandler
 from collections import OrderedDict
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
-    parser.add_argument('--batch_size', default=4096, type=int,
+    parser.add_argument('--batch_size', default=1, type=int,
                         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
-    parser.add_argument('--epochs', default=200, type=int)
-    parser.add_argument('--accum_iter', default=1, type=int,
-                        help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
+    parser.add_argument('--epochs', default=1, type=int)
 
     # Model parameters
     parser.add_argument('--model', default='mae_deit_tiny_patch4_dec512d', type=str, metavar='MODEL',
@@ -81,7 +80,7 @@ def get_args_parser():
 
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
-    parser.add_argument('--phase', type=str, default=None, choices=['pretrain', 'linprobe', 'finetune'])
+    parser.add_argument('--phase', type=str, default=None, choices=['pretrain', 'linprobe'])
     parser.add_argument('--en_wandb', action='store_true')
     return parser.parse_args()
 
@@ -99,32 +98,15 @@ def main():
 
     cudnn.benchmark = True
 
-    # simple augmentation
-    transform_train = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Lambda(lambda x: F.pad(x.unsqueeze(0),
-                                                (4, 4, 4, 4), mode='reflect').squeeze()),
-            transforms.ToPILImage(),
-            transforms.RandomCrop(32),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
-                                std=[x / 255.0 for x in [63.0, 62.1, 66.7]])])
     
     transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
-                                std=[x / 255.0 for x in [63.0, 62.1, 66.7]])])
+        transforms.ToTensor(),])
     
     kwargs = {'num_workers': 10, 'pin_memory': True}
     train_loader = torch.utils.data.DataLoader(
         datasets.__dict__['cifar10'.upper()]('../data', train=True, download=True,
-                                                transform=transform_train),
+                                                transform=transform_test),
         batch_size=args.batch_size, shuffle=True, drop_last=True, **kwargs)
-
-    val_loader = torch.utils.data.DataLoader(
-        datasets.__dict__['cifar10'.upper()]('../data', train=False, download=True, transform=transform_test),
-        batch_size=args.batch_size, shuffle=False, **kwargs)
     
     # define the model
     model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
@@ -133,23 +115,7 @@ def main():
 
     model_without_ddp = model
     model = torch.nn.DataParallel(model)
-    print("Model = %s" % str(model_without_ddp))
-
-    eff_batch_size = args.batch_size * args.accum_iter
-    
-    if args.lr is None:  # only base_lr is specified
-        args.lr = args.blr * eff_batch_size / 256
-
-    print("base lr: %.2e" % (args.lr * 256 / eff_batch_size))
-    print("actual lr: %.2e" % args.lr)
-    print("accumulate grad iterations: %d" % args.accum_iter)
-    print("effective batch size: %d" % eff_batch_size)
-    
-    # following timm: set wd as 0 for bias and norm layers
-    param_groups = optim_factory.add_weight_decay(model_without_ddp, args.weight_decay)
-    optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
-    print(optimizer)
-    loss_scaler = NativeScaler()
+    print("Model = %s" % str(model_without_ddp))   
 
     if args.resume:
         if args.resume.startswith('https'):
@@ -159,34 +125,50 @@ def main():
             checkpoint = torch.load(args.resume, map_location='cpu')
         model_without_ddp.load_state_dict(checkpoint['model'])
         print("Resume checkpoint %s" % args.resume)
-        if 'optimizer' in checkpoint and 'epoch' in checkpoint and not (hasattr(args, 'eval') and args.eval):
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            args.start_epoch = checkpoint['epoch'] + 1
-            if 'scaler' in checkpoint:
-                loss_scaler.load_state_dict(checkpoint['scaler'])
-            print("With optim & sched!")
+    
+    import matplotlib.pyplot as plt
 
-    print(f"Start training for {args.epochs} epochs")
+    for data_iter_step, (samples, _) in enumerate(train_loader):
+        samples = samples.cuda()
 
-    for epoch in range(args.start_epoch, args.epochs):
-        train_metrics = train_one_epoch(
-            model, train_loader,
-            optimizer, epoch, loss_scaler, exp=exp,
-            args=args
-        )
-        if epoch % 20 == 0 or epoch + 1 == args.epochs:
-            save_checkpoint({
-                'model': model_without_ddp.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'epoch': epoch,
-                'scaler': loss_scaler.state_dict(),
-                'args': args,
-            }, checkpoint=exp.save_dir, filename=f'checkpoint-{epoch}.pth.tar')
-        exp.write(args.phase, train_metrics=train_metrics, epoch=epoch,lr=optimizer.param_groups[0]['lr'])
+        with torch.cuda.amp.autocast():
+            _, pred, _ = model(imgs=samples, mask_ratio=args.mask_ratio)
+            img = model.module.unpatchify(pred).squeeze()
+        
+        img = transform_convert(img,transform_test)
+        raw = transform_convert(samples.squeeze(),transform_test)
+        # print(img.size())
+        plt.imshow(raw)
+        plt.savefig(f'../imgs/{data_iter_step}-raw.png')
+        plt.imshow(img)
+        plt.savefig(f'../imgs/{data_iter_step}.png')
 
-def save_checkpoint(state, checkpoint='checkpoint', filename='checkpoint.pth.tar'):
-    filepath = os.path.join(checkpoint, filename)
-    torch.save(state, filepath)
+def transform_convert(img_tensor,transform):
+    """
+    param img_tensor: tensor
+    param transforms: torchvision.transforms
+    """
+    if 'Normalize' in str(transform):
+        normal_transform = list(filter(lambda x: isinstance(x, transforms.Normalize), transform.transforms))
+        mean = torch.tensor(normal_transform[0].mean, dtype=img_tensor.dtype, device=img_tensor.device)
+        std = torch.tensor(normal_transform[0].std, dtype=img_tensor.dtype, device=img_tensor.device)
+        img_tensor.mul_(std[:,None,None]).add_(mean[:,None,None])
+
+    img_tensor = img_tensor.transpose(0,2).transpose(0,1).to('cpu')  # C x H x W  ---> H x W x C
+    
+    img_tensor = img_tensor.detach().numpy()*255
+    
+    if isinstance(img_tensor, torch.Tensor):
+    	img_tensor = img_tensor.numpy()
+    
+    if img_tensor.shape[2] == 3:
+        img = Image.fromarray(img_tensor.astype('uint8')).convert('RGB')
+    elif img_tensor.shape[2] == 1:
+        img = Image.fromarray(img_tensor.astype('uint8')).squeeze()
+    else:
+        raise Exception("Invalid img shape, expected 1 or 3 in axis 2, but got {}!".format(img_tensor.shape[2]))
+        
+    return img
 
 if __name__ == '__main__':
     
