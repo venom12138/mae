@@ -121,7 +121,7 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
                                 std=[x / 255.0 for x in [63.0, 62.1, 66.7]])])
-    kwargs = {'num_workers': 10, 'pin_memory': True}
+    kwargs = {'num_workers': 24, 'pin_memory': True}
     train_loader = torch.utils.data.DataLoader(
         datasets.__dict__['cifar10'.upper()]('../data', train=True, download=True,
                                                 transform=transform_train),
