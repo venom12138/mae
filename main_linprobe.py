@@ -32,7 +32,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.lars import LARS
 from util.crop import RandomResizedCrop
 
-import models_vit
+from networks import models_vit
 
 from engine_finetune import train_one_epoch, evaluate
 from collections import OrderedDict
