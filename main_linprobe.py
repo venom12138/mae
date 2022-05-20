@@ -223,7 +223,7 @@ def main():
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
         train_metrics = train_one_epoch(
-            model, criterion, data_loader_train,
+            model, criterion, train_loader,
             optimizer, epoch, loss_scaler,
             max_norm=None,
             exp=exp,
