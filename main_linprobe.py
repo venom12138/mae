@@ -288,7 +288,7 @@ def main():
                 }, checkpoint=exp.save_dir, filename=f'checkpoint.pth.tar')
 
         eval_metrics = evaluate(val_loader, model, device, epoch)
-        max_accuracy = max(max_accuracy, eval_metrics["top1"])
+        max_accuracy = max(max_accuracy, eval_metrics["acc1"])
         print(f'Max accuracy: {max_accuracy:.2f}%')
         if misc.is_main_process():
             exp.write(args.phase, train_metrics=train_metrics, eval_metrics=eval_metrics, epoch=epoch, lr=optimizer.param_groups[0]['lr'])
