@@ -124,7 +124,7 @@ def main():
 
     val_loader = torch.utils.data.DataLoader(
         datasets.__dict__['cifar10'.upper()]('../data', train=False, download=True, transform=transform_test),
-        batch_size=args.batch_size, shuffle=False, **kwargs)
+        batch_size=args.batch_size, shuffle=False, drop_last=False, **kwargs)
     
     # define the model
     model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
