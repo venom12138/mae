@@ -214,7 +214,6 @@ def save_on_master(*args, **kwargs):
 
 
 def init_distributed_mode(args):
-    print('--------distributed init----------')
     if args.dist_on_itp:
         args.rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
         args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
@@ -238,7 +237,7 @@ def init_distributed_mode(args):
         return
 
     args.distributed = True
-
+    args.dist_url = "tcp://%s:%s" % (os.environ['MASTER_ADDR'], os.environ['MASTER_PORT'])
     torch.cuda.set_device(args.gpu)
     args.dist_backend = 'nccl'
     print('| distributed init (rank {}): {}, gpu {}'.format(

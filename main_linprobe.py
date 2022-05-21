@@ -146,7 +146,7 @@ def main():
 
     dataset_train = datasets.__dict__['cifar10'.upper()]('../data', train=True, download=True,
                                                 transform=transform_train)
-    dataset_val = datasets.__dict__['cifar10'.upper()]('../data', train=False, download=True, transform=transform_val)
+    dataset_val = datasets.__dict__['cifar10'.upper()]('../data', train=False, download=True, transform=transform_test)
 
     print(dataset_train)
     print(dataset_val)
