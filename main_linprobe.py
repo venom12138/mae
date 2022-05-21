@@ -271,7 +271,7 @@ def main():
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
+            train_loader.sampler.set_epoch(epoch)
         train_metrics = train_one_epoch(
             model, criterion, train_loader,
             optimizer, device, epoch, loss_scaler,

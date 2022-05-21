@@ -186,7 +186,7 @@ def main():
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
+            train_loader.sampler.set_epoch(epoch)
         train_metrics = train_one_epoch(
             model, train_loader,
             optimizer, device, epoch, loss_scaler,
