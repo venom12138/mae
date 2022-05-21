@@ -161,7 +161,7 @@ class MaskedAutoencoderViT(nn.Module):
         # 第一个留给cls_token
         x = x + self.pos_embed[:, 1:, :]
 
-        # print(f'after pos_embed:{x.size()}')
+        print(f'before random masking:{x.size()}')
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
 

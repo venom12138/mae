@@ -102,6 +102,7 @@ class MAE_Encoder(nn.Module):
         # print(f'after pos_embed:{x.size()}')
         # masking: length -> length * mask_ratio
         # x, mask, ids_restore = self.random_masking(x, mask_ratio)
+        N, L, D = x.shape
         x = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
         
         # print(f'after masking:{x.size()}')
@@ -210,7 +211,9 @@ class MaskedAutoencoderViT(nn.Module):
         self.decoder = MAE_Decoder(img_size, patch_size, in_chans, embed_dim, decoder_embed_dim, decoder_depth, decoder_num_heads,
                                     mlp_ratio, norm_layer)
         # --------------------------------------------------------------------------
-
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.embed_dim = embed_dim
         self.norm_pix_loss = norm_pix_loss
 
     def patchify(self, imgs):
@@ -218,7 +221,8 @@ class MaskedAutoencoderViT(nn.Module):
         imgs: (N, 3, H, W)
         x: (N, L, patch_size**2 *3)
         """
-        p = self.patch_embed.patch_size[0]
+        p = self.patch_size
+        # print(f'patch_size={p}')
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = w = imgs.shape[2] // p
@@ -232,7 +236,7 @@ class MaskedAutoencoderViT(nn.Module):
         x: (N, L, patch_size**2 *3)
         imgs: (N, 3, H, W)
         """
-        p = self.patch_embed.patch_size[0]
+        p = self.patch_size
         h = w = int(x.shape[1]**.5)
         assert h * w == x.shape[1]
         
@@ -263,10 +267,14 @@ class MaskedAutoencoderViT(nn.Module):
         return loss
 
     def forward(self, imgs, mask_ratio=0.75):
-        random_masking(imgs, mask_ratio)
-        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
-        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
+        random_imgs = torch.rand(imgs.shape[0], (self.img_size//self.patch_size)**2, self.embed_dim)
+        # print(f'random_imgs:{random_imgs.size()}')
+        ids_keep, mask, ids_restore = random_masking(random_imgs, mask_ratio)
+        latent = self.encoder(imgs, mask_ratio, ids_keep)
+        
+        pred = self.decoder(latent, ids_restore)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
+        
         return loss, pred, mask
 
 # decoder_num_heads的decoder_depth numheads和embeddim保持不变，
@@ -308,5 +316,5 @@ mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blo
 
 if __name__=='__main__':
     model = mae_deit_tiny_patch4_dec512d()
-    x = torch.rand(1,3,32,32)
+    x = torch.rand(2,3,32,32)
     model(x)
