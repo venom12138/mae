@@ -105,8 +105,7 @@ def get_args_parser():
 
 args = get_args_parser()
 
-if args.en_wandb:
-    wandb.define_metric('pretrain/train_loss', summary='min')
+
     
 
 def main():
@@ -120,6 +119,8 @@ def main():
     if misc.is_main_process():
         exp = ExpHandler(en_wandb=args.en_wandb, args=args)
         exp.save_config(args)
+        if args.en_wandb:
+            wandb.define_metric('pretrain/train_loss', summary='min')
     cudnn.benchmark = True
 
     # simple augmentation

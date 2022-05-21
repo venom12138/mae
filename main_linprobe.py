@@ -112,8 +112,7 @@ def get_args_parser():
     return parser.parse_args()
 
 args = get_args_parser()
-if args.en_wandb:
-    wandb.define_metric('linprobe/eval_acc1', summary='max')
+
     
 def main():
     global args
@@ -127,6 +126,8 @@ def main():
     if misc.is_main_process():
         exp = ExpHandler(en_wandb=args.en_wandb, args=args)
         exp.save_config(args)
+        if args.en_wandb:
+            wandb.define_metric('linprobe/eval_acc1', summary='max')
     cudnn.benchmark = True
 
     # linear probe: weak augmentation
