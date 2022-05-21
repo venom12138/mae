@@ -36,7 +36,7 @@ def random_masking(x, mask_ratio):
 
     # keep the first subset
     ids_keep = ids_shuffle[:, :len_keep]
-
+    ids_keep_for_proxy = ids_shuffle[:, len_keep:]
     # shuffle后被保留下来的patch的值，形状是[B, L*(1-mask_ratio), D]
     # x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
 
@@ -125,7 +125,7 @@ class MAE_Encoder(nn.Module):
 class MAE_Decoder(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_chans=3,
                  embed_dim=1024, decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, bsp=False):
         super().__init__()
         num_patches = PatchEmbed(img_size, patch_size, in_chans, embed_dim).num_patches
         
@@ -140,8 +140,11 @@ class MAE_Decoder(nn.Module):
             for i in range(decoder_depth)])
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
-        self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * in_chans, bias=True) # decoder to patch
 
+        if bsp:
+            self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * embed_dim, bias=True) # decoder to patch
+        else:
+            self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * in_chans, bias=True) # decoder to patch
     def initialize_weights(self):
         # initialization
         decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
@@ -197,20 +200,18 @@ class MaskedAutoencoderViT(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_chans=3,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, bsp=False):
         super().__init__()
-
-        # --------------------------------------------------------------------------
-        # MAE encoder specifics
         self.encoder = MAE_Encoder(img_size, patch_size, in_chans, embed_dim, depth, num_heads,
                                     mlp_ratio, norm_layer)
-        # --------------------------------------------------------------------------
-
-        # --------------------------------------------------------------------------
-        # MAE decoder specifics
+        
         self.decoder = MAE_Decoder(img_size, patch_size, in_chans, embed_dim, decoder_embed_dim, decoder_depth, decoder_num_heads,
                                     mlp_ratio, norm_layer)
-        # --------------------------------------------------------------------------
+        # bootstrap
+        if bsp:
+            self.proxy_encoder = MAE_Encoder(img_size, patch_size, in_chans, embed_dim, depth, num_heads,
+                                    mlp_ratio, norm_layer)
+        self.bsp = bsp
         self.img_size = img_size
         self.patch_size = patch_size
         self.embed_dim = embed_dim
