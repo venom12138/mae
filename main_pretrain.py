@@ -36,6 +36,7 @@ from networks import models_mae
 from engine_pretrain import train_one_epoch
 from util.utils import ExpHandler
 from collections import OrderedDict
+import wandb
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
     parser.add_argument('--batch_size', default=512, type=int,
@@ -103,6 +104,10 @@ def get_args_parser():
     return parser.parse_args()
 
 args = get_args_parser()
+
+if args.en_wandb:
+    wandb.define_metric('pretrain/train_loss', summary='min')
+    
 
 def main():
     global args
@@ -202,7 +207,7 @@ def main():
             }, checkpoint=exp.save_dir, filename=f'checkpoint-{epoch}.pth.tar')
 
         if misc.is_main_process():
-            exp.write(args.phase, train_metrics=train_metrics, epoch=epoch,lr=optimizer.param_groups[0]['lr'])
+            exp.write(args.phase, train_metrics=train_metrics, epoch=epoch)
             total_time = time.time() - start_time
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

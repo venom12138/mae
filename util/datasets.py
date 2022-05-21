@@ -20,8 +20,7 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 def build_dataset(is_train, args):
     transform = build_transform(is_train, args)
 
-    root = os.path.join(args.data_path, 'train' if is_train else 'val')
-    dataset = datasets.ImageFolder(root, transform=transform)
+    dataset = datasets.CIFAR10(args.data_path, train=is_train, transform=transform)
 
     print(dataset)
 
@@ -29,8 +28,9 @@ def build_dataset(is_train, args):
 
 
 def build_transform(is_train, args):
-    mean = IMAGENET_DEFAULT_MEAN
-    std = IMAGENET_DEFAULT_STD
+    resize_im = args.input_size > 32
+    mean = [x / 255.0 for x in [125.3, 123.0, 113.9]]
+    std = [x / 255.0 for x in [63.0, 62.1, 66.7]]
     # train transform
     if is_train:
         # this should always dispatch to transforms_imagenet_train
@@ -46,19 +46,25 @@ def build_transform(is_train, args):
             mean=mean,
             std=std,
         )
+        if not resize_im:
+            # replace RandomResizedCropAndInterpolation with
+            # RandomCrop
+            transform.transforms[0] = transforms.RandomCrop(
+                args.input_size, padding=4)
         return transform
 
     # eval transform
     t = []
-    if args.input_size <= 224:
-        crop_pct = 224 / 256
-    else:
-        crop_pct = 1.0
-    size = int(args.input_size / crop_pct)
-    t.append(
-        transforms.Resize(size, interpolation=PIL.Image.BICUBIC),  # to maintain same ratio w.r.t. 224 images
-    )
-    t.append(transforms.CenterCrop(args.input_size))
+    if resize_im:
+        if args.input_size <= 224:
+            crop_pct = 224 / 256
+        else:
+            crop_pct = 1.0
+        size = int(args.input_size / crop_pct)
+        t.append(
+            transforms.Resize(size, interpolation=PIL.Image.BICUBIC),  # to maintain same ratio w.r.t. 224 images
+        )
+        t.append(transforms.CenterCrop(args.input_size))
 
     t.append(transforms.ToTensor())
     t.append(transforms.Normalize(mean, std))

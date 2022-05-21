@@ -112,7 +112,9 @@ def get_args_parser():
     return parser.parse_args()
 
 args = get_args_parser()
-
+if args.en_wandb:
+    wandb.define_metric('linprobe/eval_acc1', summary='max')
+    
 def main():
     global args
     misc.init_distributed_mode(args)
@@ -291,7 +293,7 @@ def main():
         max_accuracy = max(max_accuracy, eval_metrics["acc1"])
         print(f'Max accuracy: {max_accuracy:.2f}%')
         if misc.is_main_process():
-            exp.write(args.phase, train_metrics=train_metrics, eval_metrics=eval_metrics, epoch=epoch, lr=optimizer.param_groups[0]['lr'])
+            exp.write(args.phase, train_metrics=train_metrics, eval_metrics=eval_metrics, epoch=epoch)
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
