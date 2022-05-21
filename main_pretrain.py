@@ -103,18 +103,18 @@ def get_args_parser():
     return parser.parse_args()
 
 args = get_args_parser()
-exp = ExpHandler(en_wandb=args.en_wandb, args=args)
-exp.save_config(args)
 
 def main():
-    global args, exp
+    global args
     misc.init_distributed_mode(args)
     device = torch.device(args.device)
     # fix the seed for reproducibility
     seed = args.seed + misc.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
-
+    if misc.is_main_process():
+        exp = ExpHandler(en_wandb=args.en_wandb, args=args)
+        exp.save_config(args)
     cudnn.benchmark = True
 
     # simple augmentation
@@ -190,7 +190,6 @@ def main():
         train_metrics = train_one_epoch(
             model, train_loader,
             optimizer, device, epoch, loss_scaler,
-            exp=exp,
             args=args
         )
         if (epoch % 20 == 0 or epoch + 1 == args.epochs) and misc.is_main_process():

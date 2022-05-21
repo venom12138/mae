@@ -112,11 +112,9 @@ def get_args_parser():
     return parser.parse_args()
 
 args = get_args_parser()
-exp = ExpHandler(en_wandb=args.en_wandb, args=args)
-exp.save_config(args)
 
 def main():
-    global args, exp
+    global args
     misc.init_distributed_mode(args)
     device = torch.device(args.device)
     # fix the seed for reproducibility
@@ -124,6 +122,9 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
 
+    if misc.is_main_process():
+        exp = ExpHandler(en_wandb=args.en_wandb, args=args)
+        exp.save_config(args)
     cudnn.benchmark = True
 
     # linear probe: weak augmentation
@@ -261,7 +262,7 @@ def main():
     misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
     if args.eval:
-        test_stats = evaluate(val_loader, model, device, exp, epoch)
+        test_stats = evaluate(val_loader, model, device, epoch)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         exit(0)
 
@@ -275,7 +276,6 @@ def main():
             model, criterion, train_loader,
             optimizer, device, epoch, loss_scaler,
             max_norm=None,
-            exp=exp,
             args=args
         )
         if misc.is_main_process():
@@ -287,7 +287,7 @@ def main():
                     'args': args,
                 }, checkpoint=exp.save_dir, filename=f'checkpoint.pth.tar')
 
-        eval_metrics = evaluate(val_loader, model, device, exp, epoch)
+        eval_metrics = evaluate(val_loader, model, device, epoch)
         max_accuracy = max(max_accuracy, eval_metrics["top1"])
         print(f'Max accuracy: {max_accuracy:.2f}%')
         if misc.is_main_process():
