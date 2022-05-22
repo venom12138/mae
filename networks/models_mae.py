@@ -169,6 +169,7 @@ class MaskedAutoencoderViT(nn.Module):
         # append cls token
         # cls_token 加上pos_embedding
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
+
         # expand 成[B,1,embeding_size]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
@@ -188,8 +189,11 @@ class MaskedAutoencoderViT(nn.Module):
         x = self.decoder_embed(x)
         
         # append mask tokens to sequence
-        # [B, 14*14 + 1 - , 1]
+        # [B, 14*14 - 0.25*14*14 , 1] 
+        # mask_token就是一个可学习得mask向量，用来补全被mask掉的向量
         mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1)
+        print(f'mask_tokens:{mask_tokens.size()}')
+
         x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token
         x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2]))  # unshuffle
         x = torch.cat([x[:, :1, :], x_], dim=1)  # append cls token

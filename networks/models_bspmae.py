@@ -36,7 +36,7 @@ def random_masking(x, mask_ratio):
 
     # keep the first subset
     ids_keep = ids_shuffle[:, :len_keep]
-    ids_keep_for_proxy = ids_shuffle[:, len_keep:]
+    
     # shuffle后被保留下来的patch的值，形状是[B, L*(1-mask_ratio), D]
     # x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
 
@@ -49,7 +49,7 @@ def random_masking(x, mask_ratio):
     # 若想要知道x_mask中的每一个元素对应原图中的什么位置，只需要类似于torch.gather[x_mask, dim=1, index=ids_restore]即可将图片恢复
     mask = torch.gather(mask, dim=1, index=ids_restore)
 
-    return ids_keep, mask, ids_restore
+    return ids_keep, mask, len_keep, ids_shuffle, ids_restore
 
 class MAE_Encoder(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_chans=3,
@@ -215,6 +215,7 @@ class MaskedAutoencoderViT(nn.Module):
         self.img_size = img_size
         self.patch_size = patch_size
         self.embed_dim = embed_dim
+        self.decoder_embed_dim = decoder_embed_dim
         self.norm_pix_loss = norm_pix_loss
 
     def patchify(self, imgs):
@@ -270,11 +271,25 @@ class MaskedAutoencoderViT(nn.Module):
     def forward(self, imgs, mask_ratio=0.75):
         random_imgs = torch.rand(imgs.shape[0], (self.img_size//self.patch_size)**2, self.embed_dim)
         # print(f'random_imgs:{random_imgs.size()}')
-        ids_keep, mask, ids_restore = random_masking(random_imgs, mask_ratio)
+        # ids_restore[ids_shuffle] = [0,1,2,3,...] 也就是恢复顺序
+        
+        ids_keep, mask, len_keep, ids_shuffle, ids_restore = random_masking(random_imgs, mask_ratio)
+        if self.bsp:
+            ids_keep_for_proxy = ids_shuffle[:, len_keep:]
+            proxy_latent = self.proxy_encoder(imgs, 1 - mask_ratio, ids_keep_for_proxy)
+            
+            proxy_mask_tokens = torch.zeros(1, 1, self.embed_dim).repeat(proxy_latent.shape[0], ids_restore.shape[1] + 1 - proxy_latent.shape[1], 1)
+            proxy_output = torch.cat([proxy_mask_tokens, proxy_latent[:, 1:, :]], dim=1)  # no cls token
+            proxy_output = torch.gather(proxy_output, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, proxy_latent.shape[2]))  # unshuffle
+
         latent = self.encoder(imgs, mask_ratio, ids_keep)
         
         pred = self.decoder(latent, ids_restore)  # [N, L, p*p*3]
-        loss = self.forward_loss(imgs, pred, mask)
+        
+        if self.bsp:
+            loss = self.forward_loss(proxy_output, pred, mask)
+        else:
+            loss = self.forward_loss(imgs, pred, mask)
         
         return loss, pred, mask
 

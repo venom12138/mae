@@ -44,9 +44,21 @@ import torch.nn as nn
 # print(f'ids_restore shape:{ids_restore.size()}')
 
 noise = torch.rand(10)  # noise in [0, 1]
-    
+x = torch.range(10)
+
 # sort noise for each sample
 ids_shuffle = torch.argsort(noise)  # ascend: small is keep, large is remove
 ids_restore = torch.argsort(ids_shuffle)
+ids_keep = ids_shuffle[:5] # mask掉5个
 print(f'ids_shuffle:{ids_shuffle}')
 print(f'ids_restore:{ids_restore}')
+
+x_mask = x_mask[ids_keep]
+print(f'x_mask:{x_mask}')
+
+mask_token = torch.zeros(5)
+x_ = torch.cat((x_mask, mask_token))
+x_ = x_[ids_restore]
+print(f'restore_x:{x_}')
+
+# x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2]))
