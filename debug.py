@@ -125,23 +125,10 @@ from copy import deepcopy
 # sd_after = model.state_dict()
 # diff_keys = [k for k in sd_before if not torch.equal(sd_before[k], sd_after[k])]
 # print(set(diff_keys)^set(sd_before.keys()))
-import timm.optim.optim_factory as optim_factory
-
-model = models_bspmae.__dict__['mae_deit_tiny_patch4_dec512d'](norm_pix_loss=True, bsp=True)
-for name, param in model.named_parameters():
-    if not param.requires_grad:
-        print(name)
-def add_weight_decay(model, weight_decay=1e-5, skip_list=()):
-    decay = []
-    no_decay = []
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            # print(f'frozen weight name:{name}')
-            continue  # frozen weights
-        if len(param.shape) == 1 or name.endswith(".bias") or name in skip_list:
-            no_decay.append(param)
-        else:
-            decay.append(param)
-    return [
-        {'params': no_decay, 'weight_decay': 0.},
-        {'params': decay, 'weight_decay': weight_decay}]
+n = 10
+num=range(10)
+for i in range(1, n-2):
+    for j in range(1, n-i-1):
+        for k in range(1, n-i-j):
+            for z in range(1, n-i-j-k+1):
+                print(f'{num[:i]},{num[i:i+j]},{num[i+j:i+j+k]},{num[i+j+k:i+j+k+z]}')

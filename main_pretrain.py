@@ -189,6 +189,10 @@ def main():
     print(optimizer)
     loss_scaler = NativeScaler()
 
+    for name, param in model_without_ddp.named_parameters():
+        if not param.requires_grad:
+            print(f'param not grad:{name}')
+
     misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
     if args.bsp_resume:
