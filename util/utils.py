@@ -43,6 +43,11 @@ class ExpHandler:
 
         self._logger = self._init_logger()
         self._en_wandb = en_wandb
+        with open(f'{_home}/.core/flag', 'r+') as f:
+            counter = eval(f.read())
+            f.seek(0)
+            # zombie 为0
+            f.write(0)
 
 
     @staticmethod
