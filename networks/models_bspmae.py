@@ -148,7 +148,7 @@ class MAE_Decoder(nn.Module):
         mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1)
         x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token
         x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2]))  # unshuffle
-        
+        print(f'latent:{latent[:,:,:2]}')
         x = torch.cat([x[:, :1, :], x_], dim=1)  # append cls token
 
         # add pos embed
@@ -290,13 +290,13 @@ class MaskedAutoencoderViT(nn.Module):
         if self.bsp:
             ids_keep_for_proxy = ids_shuffle[:, len_keep:]
             proxy_latent = self.proxy_encoder(imgs, ids_keep_for_proxy)
-            
+            # print(f'proxy_latent:{proxy_latent.size()}')
             proxy_mask_tokens = torch.zeros(1, 1, self.embed_dim, device=imgs.device).repeat(proxy_latent.shape[0], ids_restore.shape[1] + 1 - proxy_latent.shape[1], 1)
             proxy_output = torch.cat([proxy_mask_tokens, proxy_latent[:, 1:, :]], dim=1)  # no cls token
             proxy_output = torch.gather(proxy_output, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, proxy_latent.shape[2]))  # unshuffle
-            # print(f'proxy_out:{proxy_output[:,:,0]}')
+            print(f'proxy_out:{proxy_output[:,:,2]}')
         latent = self.encoder(imgs, ids_keep)
-        
+        # 
         pred = self.decoder(latent, ids_restore)  # [N, L, p*p*3]
         
         if self.bsp:
@@ -344,8 +344,8 @@ mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 b
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
 
 if __name__=='__main__':
-    model = mae_deit_tiny_patch4_dec512d(bsp=False)
-    n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f'n_param:{n_parameters}')
+    model = mae_deit_tiny_patch4_dec512d(bsp=True)
+    # n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # print(f'n_param:{n_parameters}')
     x = torch.rand(2,3,32,32)
     model(x)
