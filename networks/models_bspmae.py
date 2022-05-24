@@ -148,7 +148,7 @@ class MAE_Decoder(nn.Module):
         mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1)
         x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token
         x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2]))  # unshuffle
-        print(f'latent:{latent[:,:,:2]}')
+        # print(f'latent:{x_[:,:,:2]}')
         x = torch.cat([x[:, :1, :], x_], dim=1)  # append cls token
 
         # add pos embed
@@ -294,7 +294,7 @@ class MaskedAutoencoderViT(nn.Module):
             proxy_mask_tokens = torch.zeros(1, 1, self.embed_dim, device=imgs.device).repeat(proxy_latent.shape[0], ids_restore.shape[1] + 1 - proxy_latent.shape[1], 1)
             proxy_output = torch.cat([proxy_mask_tokens, proxy_latent[:, 1:, :]], dim=1)  # no cls token
             proxy_output = torch.gather(proxy_output, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, proxy_latent.shape[2]))  # unshuffle
-            print(f'proxy_out:{proxy_output[:,:,2]}')
+            # print(f'proxy_out:{proxy_output[:,:,:2]}')
         latent = self.encoder(imgs, ids_keep)
         # 
         pred = self.decoder(latent, ids_restore)  # [N, L, p*p*3]
