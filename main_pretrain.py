@@ -224,6 +224,7 @@ def save_checkpoint(state, checkpoint='checkpoint', filename='checkpoint.pth.tar
     torch.save(state, filepath)
 
 def bsp_load_ckpt(model, ckpt_path):
+    assert os.path.exists(ckpt_path)
     checkpoint = torch.load(ckpt_path, map_location='cpu')
     encoder_ckpt = {}
     decoder_ckpt = {}
