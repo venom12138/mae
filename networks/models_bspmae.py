@@ -184,7 +184,9 @@ class MaskedAutoencoderViT(nn.Module):
         if bsp:
             self.proxy_encoder = MAE_Encoder(img_size, patch_size, in_chans, embed_dim, depth, num_heads,
                                     mlp_ratio, norm_layer)
-            self.proxy_encoder.requires_grad=False
+            for _,p in self.proxy_encoder.named_parameters():
+                p.requires_grad = False
+
         self.bsp = bsp
         self.img_size = img_size
         self.patch_size = patch_size

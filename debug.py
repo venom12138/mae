@@ -99,29 +99,49 @@ from copy import deepcopy
 # print(len(encoder_ckpt.keys()))
 # print(len(decoder_ckpt.keys()))
 
-model = models_vit.__dict__['deit_tiny_patch4_32'](
-        num_classes=10,
-        global_pool=False,
-    )
+# model = models_vit.__dict__['deit_tiny_patch4_32'](
+#         num_classes=10,
+#         global_pool=False,
+#     )
 
-resume = '/home/jwyu/venom/bootstrap-mae/ckpt.pth'
-checkpoint = torch.load(resume, map_location='cpu')
-encoder_ckpt = {}
-decoder_ckpt = {}
-for k,v in checkpoint['model'].items():
-    if 'encoder' in k:
-        if k.startswith('encoder.'):
-            newkey = k[len('encoder.') :]
-            encoder_ckpt.update({newkey:v})
+# resume = '/home/jwyu/venom/bootstrap-mae/ckpt.pth'
+# checkpoint = torch.load(resume, map_location='cpu')
+# encoder_ckpt = {}
+# decoder_ckpt = {}
+# for k,v in checkpoint['model'].items():
+#     if 'encoder' in k:
+#         if k.startswith('encoder.'):
+#             newkey = k[len('encoder.') :]
+#             encoder_ckpt.update({newkey:v})
 
-sd_before = deepcopy(model.state_dict())
+# sd_before = deepcopy(model.state_dict())
 
-for k in ['head.weight', 'head.bias']:
-    if k in encoder_ckpt and encoder_ckpt[k].shape != sd_before[k].shape:
-        print(f"Removing key {k} from pretrained checkpoint")
-        del encoder_ckpt[k]
+# for k in ['head.weight', 'head.bias']:
+#     if k in encoder_ckpt and encoder_ckpt[k].shape != sd_before[k].shape:
+#         print(f"Removing key {k} from pretrained checkpoint")
+#         del encoder_ckpt[k]
 
-model.load_state_dict(encoder_ckpt,strict=False)
-sd_after = model.state_dict()
-diff_keys = [k for k in sd_before if not torch.equal(sd_before[k], sd_after[k])]
-print(set(diff_keys)^set(sd_before.keys()))
+# model.load_state_dict(encoder_ckpt,strict=False)
+# sd_after = model.state_dict()
+# diff_keys = [k for k in sd_before if not torch.equal(sd_before[k], sd_after[k])]
+# print(set(diff_keys)^set(sd_before.keys()))
+import timm.optim.optim_factory as optim_factory
+
+model = models_bspmae.__dict__['mae_deit_tiny_patch4_dec512d'](norm_pix_loss=True, bsp=True)
+for name, param in model.named_parameters():
+    if not param.requires_grad:
+        print(name)
+def add_weight_decay(model, weight_decay=1e-5, skip_list=()):
+    decay = []
+    no_decay = []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            # print(f'frozen weight name:{name}')
+            continue  # frozen weights
+        if len(param.shape) == 1 or name.endswith(".bias") or name in skip_list:
+            no_decay.append(param)
+        else:
+            decay.append(param)
+    return [
+        {'params': no_decay, 'weight_decay': 0.},
+        {'params': decay, 'weight_decay': weight_decay}]
