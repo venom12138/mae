@@ -125,10 +125,4 @@ from copy import deepcopy
 # sd_after = model.state_dict()
 # diff_keys = [k for k in sd_before if not torch.equal(sd_before[k], sd_after[k])]
 # print(set(diff_keys)^set(sd_before.keys()))
-n = 10
-num=range(10)
-for i in range(1, n-2):
-    for j in range(1, n-i-1):
-        for k in range(1, n-i-j):
-            for z in range(1, n-i-j-k+1):
-                print(f'{num[:i]},{num[i:i+j]},{num[i+j:i+j+k]},{num[i+j+k:i+j+k+z]}')
+
