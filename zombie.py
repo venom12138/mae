@@ -2,8 +2,8 @@ import torch
 import time
 import os
 
-a = torch.randn(1000,device='cuda')
+a = torch.randn((34000,34000), device='cuda', dtype=torch.float64)
 
 while True:
-    a += torch.dot(a,a.T)
-    time.sleep(0.001)
+    a += torch.mul(a,a.T)
+    # time.sleep(0.001)
