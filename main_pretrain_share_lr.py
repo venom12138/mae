@@ -104,7 +104,11 @@ def get_args_parser():
                         help='resume from bootstrap checkpoint')
     parser.add_argument('--phase', type=str, default=None, choices=['pretrain', 'linprobe', 'finetune'])
     parser.add_argument('--en_wandb', action='store_true')
-    resume_check_exclude_keys
+    parser.add_argument('--resume-check-exclude-keys', type=str, nargs='+'
+                    , default=['strict_resume','exp_id','wandb_id','resume_check_exclude_keys',
+                        'start_epoch', 'commit', 'run_id', 'resume', 'workers', 'dist_url', 
+                        'bsp_resume', 'data_path'])
+    parser.add_argument('--strict-resume', default=1, type=int)
     return parser.parse_args()
 
 args = get_args_parser()
