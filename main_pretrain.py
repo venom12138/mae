@@ -259,13 +259,13 @@ def bsp_load_ckpt(model, ckpt_path):
             
     sd_before = deepcopy(model.state_dict())
     model.encoder.load_state_dict(encoder_ckpt)
-    model.decoder.load_state_dict(decoder_ckpt, strict=False)
+    # model.decoder.load_state_dict(decoder_ckpt, strict=False)
     model.proxy_encoder.load_state_dict(encoder_ckpt)
     sd_after = model.state_dict()
     diff_keys = [k for k in sd_before if not torch.equal(sd_before[k], sd_after[k])]
     print(set(diff_keys)^set(sd_before.keys()))
     # pos_embed decoder_pos_embed proxy_pos_embed
-    assert len(set(diff_keys)) == len(set(sd_before.keys()))-len(set(poped_key.keys())) -3
+    assert len(set(diff_keys)) == len(set(sd_before.keys()))-len(set(poped_key.keys())) -3 - len(set(decoder_ckpt.keys()))
     print(f'loaded bootstrap ckpt from {ckpt_path}')
 
 if __name__ == '__main__':
