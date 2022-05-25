@@ -126,3 +126,19 @@ from copy import deepcopy
 # diff_keys = [k for k in sd_before if not torch.equal(sd_before[k], sd_after[k])]
 # print(set(diff_keys)^set(sd_before.keys()))
 
+checkpoint = torch.load(ckpt_path, map_location='cpu')
+encoder_ckpt = {}
+decoder_ckpt = {}
+poped_key = {}
+for k,v in checkpoint['model'].items():
+    if 'encoder' in k:
+        if k.startswith('encoder.'):
+            newkey = k[len('encoder.') :]
+            encoder_ckpt.update({newkey:v})
+    if 'decoder' in k:
+        if k.startswith('decoder.'):
+            newkey = k[len('decoder.') :]
+            if not newkey.startswith('decoder_pred'):
+                decoder_ckpt.update({newkey:v})
+            else:
+                poped_key.update({newkey:v})
