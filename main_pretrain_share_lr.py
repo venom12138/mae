@@ -104,15 +104,17 @@ def get_args_parser():
                         help='resume from bootstrap checkpoint')
     parser.add_argument('--phase', type=str, default=None, choices=['pretrain', 'linprobe', 'finetune'])
     parser.add_argument('--en_wandb', action='store_true')
-    parser.add_argument('--resume-check-exclude-keys', type=str, nargs='+'
-                    , default=['strict_resume','exp_id','wandb_id','resume_check_exclude_keys',
-                        'start_epoch', 'commit', 'run_id', 'resume', 'workers', 'dist_url', 
-                        'bsp_resume', 'data_path'])
-    parser.add_argument('--strict-resume', default=1, type=int)
+    
+    # for lr share
+    parser.add_argument('--share_lr', type=int, default=0, choices=[0, 1])
+    parser.add_argument('--whole_epochs', default=200, type=int)
+    parser.add_argument('--epochs_used', default=None, type=int)
     return parser.parse_args()
 
 args = get_args_parser()
-
+if args.share_lr:
+    assert args.epochs_used != None
+    
 def main():
     global args
     misc.init_distributed_mode(args)
