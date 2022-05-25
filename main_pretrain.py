@@ -114,6 +114,7 @@ def get_args_parser():
 args = get_args_parser()
 if args.share_lr:
     assert args.epochs_used != None
+    assert args.epochs_used + args.epochs == args.whole_epochs
 
 def main():
     global args
