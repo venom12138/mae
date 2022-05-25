@@ -244,7 +244,12 @@ def bsp_load_ckpt(model, ckpt_path):
                 if not newkey.startswith('decoder_pred'):
                     decoder_ckpt.update({newkey:v})
                 else:
-                    poped_key.update({newkey:v})
+                    print(checkpoint['model'][k].shape)
+                    print(eval(f'model.{k}').shape)
+                    if checkpoint['model'][k].shape == eval(f'model.{k}').shape:
+                        decoder_ckpt.update({newkey:v})
+                    else:
+                        poped_key.update({newkey:v})
                     
             
     sd_before = deepcopy(model.state_dict())

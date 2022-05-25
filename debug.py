@@ -125,8 +125,10 @@ from copy import deepcopy
 # sd_after = model.state_dict()
 # diff_keys = [k for k in sd_before if not torch.equal(sd_before[k], sd_after[k])]
 # print(set(diff_keys)^set(sd_before.keys()))
-
+# ckpt_path = '/home/jwyu/.exp/0520_MAE_yjw/0525_pretrain_bsp_3/Y0162_times=0,bsp=1,warmup_epochs=5,norm_pix_loss=1,phase=pretrain,blr=1e-4,bs=1024/checkpoint.pth'
+ckpt_path = '/home/jwyu/.exp/0520_MAE_yjw/0525_pretrain_bsp_3/Y0161_times=0,bsp=0,warmup_epochs=5,norm_pix_loss=1,phase=pretrain,blr=1e-4,bs=1024/checkpoint.pth'
 checkpoint = torch.load(ckpt_path, map_location='cpu')
+model = models_bspmae.__dict__['mae_deit_tiny_patch4_dec512d'](norm_pix_loss=True,bsp=True)
 encoder_ckpt = {}
 decoder_ckpt = {}
 poped_key = {}
@@ -141,4 +143,11 @@ for k,v in checkpoint['model'].items():
             if not newkey.startswith('decoder_pred'):
                 decoder_ckpt.update({newkey:v})
             else:
-                poped_key.update({newkey:v})
+                print(checkpoint['model'][k].shape)
+                print(eval(f'model.{k}').shape)
+                if checkpoint['model'][k].shape == eval(f'model.{k}').shape:
+                    decoder_ckpt.update({newkey:v})
+                else:
+                    poped_key.update({newkey:v})
+                
+                
