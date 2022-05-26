@@ -109,6 +109,8 @@ def get_args_parser():
     parser.add_argument('--share_lr', type=int, default=0, choices=[0, 1])
     parser.add_argument('--whole_epochs', default=200, type=int)
     parser.add_argument('--epochs_used', default=None, type=int)
+    # diff layer for proxy output
+    parser.add_argument('--bsp_feature_layer', default=None, type=int)
     return parser.parse_args()
 
 args = get_args_parser()
@@ -167,10 +169,10 @@ def main():
 
     # define the model
     if args.bsp_resume:
-        model = models_bspmae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, bsp=True)
+        model = models_bspmae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, bsp=True, bsp_feature_layer=args.bsp_feature_layer)
     else:
         model = models_bspmae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, bsp=False)
-
+    
     model.to(device)
 
     model_without_ddp = model

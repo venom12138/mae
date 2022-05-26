@@ -88,9 +88,10 @@ class MAE_Encoder(nn.Module):
         if bsp_feature_layer != None:
             assert bsp_feature_layer < len(self.blocks)
             for i in range(len(self.blocks)):
-                x = self.blocks[i](x)
                 if i == bsp_feature_layer:
+                    # print(f'i:{i}break')
                     break
+                x = self.blocks[i](x)
         else:
             for blk in self.blocks:
                 x = blk(x)
@@ -353,7 +354,7 @@ mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 b
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
 
 if __name__=='__main__':
-    model = mae_deit_tiny_patch4_dec512d(bsp=True)
+    model = mae_deit_tiny_patch4_dec512d(bsp=True, bsp_feature_layer=1)
     # n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     # print(f'n_param:{n_parameters}')
     x = torch.rand(2,3,32,32)
