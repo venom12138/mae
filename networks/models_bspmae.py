@@ -59,7 +59,7 @@ class MAE_Encoder(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def forward(self, x, ids_keep):
+    def forward(self, x, ids_keep, bsp_feature_layer=None):
         # embed patches
         x = self.patch_embed(x)
 
@@ -85,8 +85,16 @@ class MAE_Encoder(nn.Module):
 
         # print(f'after cls_tokens:{x.size()}')
         # apply Transformer blocks
-        for blk in self.blocks:
-            x = blk(x)
+        if bsp_feature_layer != None:
+            assert bsp_feature_layer < len(self.blocks)
+            for i in range(len(self.blocks)):
+                x = self.blocks[i](x)
+                if i == bsp_feature_layer:
+                    break
+        else:
+            for blk in self.blocks:
+                x = blk(x)
+                
         x = self.norm(x)
 
         # print(f'after encoder:{x.size()}')
@@ -173,7 +181,7 @@ class MaskedAutoencoderViT(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_chans=3,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, bsp=False):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, bsp=False, bsp_feature_layer=None):
         super().__init__()
         self.encoder = MAE_Encoder(img_size, patch_size, in_chans, embed_dim, depth, num_heads,
                                     mlp_ratio, norm_layer)
@@ -187,6 +195,7 @@ class MaskedAutoencoderViT(nn.Module):
             for _,p in self.proxy_encoder.named_parameters():
                 p.requires_grad = False
 
+        self.bsp_feature_layer = bsp_feature_layer
         self.bsp = bsp
         self.img_size = img_size
         self.patch_size = patch_size
@@ -289,7 +298,7 @@ class MaskedAutoencoderViT(nn.Module):
         # print(f'mask:{mask}')
         if self.bsp:
             ids_keep_for_proxy = ids_shuffle[:, len_keep:]
-            proxy_latent = self.proxy_encoder(imgs, ids_keep_for_proxy)
+            proxy_latent = self.proxy_encoder(imgs, ids_keep_for_proxy, bsp_feature_layer=self.bsp_feature_layer)
             # print(f'proxy_latent:{proxy_latent.size()}')
             proxy_mask_tokens = torch.zeros(1, 1, self.embed_dim, device=imgs.device).repeat(proxy_latent.shape[0], ids_restore.shape[1] + 1 - proxy_latent.shape[1], 1)
             proxy_output = torch.cat([proxy_mask_tokens, proxy_latent[:, 1:, :]], dim=1)  # no cls token
